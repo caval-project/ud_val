@@ -1,0 +1,1194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The valency Lexicon for Universal Dependencies</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  <!-- =========================
+       brat visualization assets
+       =========================
+       These are language-agnostic technically, but the CONFIG below (collData)
+       is language-/treebank-specific because it encodes POS/deprel inventories.
+  -->
+
+  <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='brat/css/style-vis.css') }}">
+  <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='brat/css/style-ui.css') }}">
+  <script src="{{ url_for('static', filename='brat/js/head.load.min.js') }}"></script>
+
+  <script type="text/javascript">
+    var bratLocation = "{{ url_for('static', filename='brat') }}";
+
+    /**
+     * Load brat modules with head.js.
+     * If you upgrade brat or change filenames/paths, update this list.
+     */
+    head.js(
+      bratLocation + '/js/jquery.min.js',
+      bratLocation + '/js/jquery.svg.min.js',
+      bratLocation + '/js/jquery.svgdom.min.js',
+
+      bratLocation + '/js/util.js',
+      bratLocation + '/js/annotation_log.js',
+      bratLocation + '/js/dispatcher.js',
+
+      bratLocation + '/js/webfont.js',
+      bratLocation + '/js/visualizer.js',
+      bratLocation + '/js/visualizer_ui.js',
+      bratLocation + '/js/url_monitor.js',
+      bratLocation + '/js/spinner.js',
+      bratLocation + '/js/configuration.js'
+    );
+  </script>
+
+  <script type="text/javascript">
+    var webFontURLs = [
+      "{{ url_for('static', filename='brat/fonts/Astloch-Bold.ttf') }}",
+      "{{ url_for('static', filename='brat/fonts/PT_Sans-Caption-Web-Regular.ttf') }}",
+      "{{ url_for('static', filename='brat/fonts/Liberation_Sans-Regular.ttf') }}"
+    ];
+
+    /**
+     * collData:
+     * brat collection configuration (HIGHLY CUSTOMIZABLE).
+     *
+     * Language / dataset specific parts:
+     *  - entity_types: usually reflect POS tagset (e.g., UD UPOS like VERB, NOUN, ADJ).
+     *  - relation_types: dependency relations (UD deprels like nsubj, obj, obl, etc.).
+     *  - attribute_types: optional features like Case, Gender, etc.
+     *
+     * When porting to another language/treebank:
+     *  - Ensure POS inventory matches what your backend emits into brat_data.
+     *  - Ensure deprels match your backend output.
+     *  - Consider adding/removing attribute values
+     */
+    var collData = {
+      entity_types: [
+        /**
+         * POS tags as entity types (UD UPOS).
+         * - Customize list if your treebank uses additional tags or you want special styling.
+         * - Colors are purely UI choices.
+         */
+        { type: 'ADV',   labels: ['ADV'],   bgColor: '#A9A9F5', borderColor: 'darken' },
+        { type: 'VERB',  labels: ['VERB'],  bgColor: '#A9A9F5', borderColor: 'darken' },
+        { type: 'PRON',  labels: ['PRON'],  bgColor: '#A9A9F5', borderColor: 'darken' },
+        { type: 'PART',  labels: ['PART'],  bgColor: '#A9A9F5', borderColor: 'darken' },
+        { type: 'ADP',   labels: ['ADP'],   bgColor: '#A9A9F5', borderColor: 'darken' },
+        { type: 'NOUN',  labels: ['NOUN'],  bgColor: '#A9A9F5', borderColor: 'darken' },
+        { type: 'PUNCT', labels: ['PUNCT'], bgColor: '#A9A9F5', borderColor: 'darken' },
+        { type: 'CCONJ', labels: ['CCONJ'], bgColor: '#A9A9F5', borderColor: 'darken' },
+        { type: 'ADJ',   labels: ['ADJ'],   bgColor: '#A9A9F5', borderColor: 'darken' },
+        { type: 'AUX',   labels: ['AUX'],   bgColor: '#A9A9F5', borderColor: 'darken' },
+        { type: 'SCONJ', labels: ['SCONJ'], bgColor: '#A9A9F5', borderColor: 'darken' },
+        { type: 'DET',   labels: ['DET'],   bgColor: '#A9A9F5', borderColor: 'darken' },
+        { type: 'NUM',   labels: ['NUM'],   bgColor: '#A9A9F5', borderColor: 'darken' },
+        { type: 'PROPN', labels: ['PROPN'], bgColor: '#A9A9F5', borderColor: 'darken' },
+        { type: 'INTJ',  labels: ['INTJ'],  bgColor: '#A9A9F5', borderColor: 'darken' },
+        { type: 'X',     labels: ['X'],     bgColor: '#A9A9F5', borderColor: 'darken' },
+
+        /**
+         * Custom entity types used by your application for UI emphasis.
+         * - These depend on how your backend emits entities in sentence.brat_data.
+         * - Example: highlight the "selected verb" differently.
+         */
+        { type: 'SelectedVerb_VERB', labels: ['VERB'], bgColor: '#f5bba9', borderColor: 'darken' },
+        { type: 'SelectedVerb_AUX',  labels: ['AUX'],  bgColor: '#f5bba9', borderColor: 'darken' },
+
+        /**
+         * Default token fallback.
+        { type: 'Token', labels: ['Token'], bgColor: '#FFFFFF', borderColor: 'darken' }
+      ],
+
+      relation_types: [
+        /**
+         * Dependency relations (UD deprels) (LANGUAGE/TREEBANK-SPECIFIC).
+         * - Add/remove deprels based on your dataset.
+         * - The visual style (dashArray/color) is UI only.
+         *
+         * args.targets must match entity types present in your brat_data.
+         * If your brat_data uses different entity labels, update targets accordingly.
+         */
+        { type: 'ccomp',       labels: ['ccomp'],       dashArray: '3,3', color: '#d20e0e',
+          args: [{ role: 'Governor', targets: ['VERB', 'SelectedVerb'] },
+                 { role: 'Dependent', targets: ['Argument'] }] },
+
+        { type: 'csubj',       labels: ['csubj'],       dashArray: '3,3', color: '#d20e0e',
+          args: [{ role: 'Governor', targets: ['VERB', 'SelectedVerb'] },
+                 { role: 'Dependent', targets: ['Argument'] }] },
+
+        { type: 'csubj:caus',  labels: ['csubj:caus'],  dashArray: '3,3', color: '#d20e0e',
+          args: [{ role: 'Governor', targets: ['VERB', 'SelectedVerb'] },
+                 { role: 'Dependent', targets: ['Argument'] }] },
+
+        { type: 'iobj',        labels: ['iobj'],        dashArray: '3,3', color: '#d20e0e',
+          args: [{ role: 'Governor', targets: ['VERB', 'SelectedVerb'] },
+                 { role: 'Dependent', targets: ['Argument'] }] },
+
+        { type: 'xcomp',       labels: ['xcomp'],       dashArray: '3,3', color: '#d20e0e',
+          args: [{ role: 'Governor', targets: ['VERB', 'SelectedVerb'] },
+                 { role: 'Dependent', targets: ['Argument'] }] },
+
+        { type: 'nmod',        labels: ['nmod'],        dashArray: '3,3', color: '#d20e0e',
+          args: [{ role: 'Governor', targets: ['VERB', 'SelectedVerb'] },
+                 { role: 'Dependent', targets: ['Argument'] }] },
+
+        { type: 'nsubj',       labels: ['nsubj'],       dashArray: '3,3', color: '#d20e0e',
+          args: [{ role: 'Governor', targets: ['VERB', 'SelectedVerb'] },
+                 { role: 'Dependent', targets: ['Argument'] }] },
+
+        { type: 'nsubj:caus',  labels: ['nsubj:caus'],  dashArray: '3,3', color: '#d20e0e',
+          args: [{ role: 'Governor', targets: ['VERB', 'SelectedVerb'] },
+                 { role: 'Dependent', targets: ['Argument'] }] },
+
+        { type: 'nsubj:pass',  labels: ['nsubj:pass'],  dashArray: '3,3', color: '#d20e0e',
+          args: [{ role: 'Governor', targets: ['VERB', 'SelectedVerb'] },
+                 { role: 'Dependent', targets: ['Argument'] }] },
+
+        { type: 'obj',         labels: ['obj'],         dashArray: '3,3', color: '#d20e0e',
+          args: [{ role: 'Governor', targets: ['VERB', 'SelectedVerb'] },
+                 { role: 'Dependent', targets: ['Argument'] }] },
+
+        { type: 'obl',         labels: ['obl'],         dashArray: '3,3', color: '#d20e0e',
+          args: [{ role: 'Governor', targets: ['VERB', 'SelectedVerb'] },
+                 { role: 'Dependent', targets: ['Argument'] }] },
+
+        { type: 'obl:agent',   labels: ['obl:agent'],   dashArray: '3,3', color: '#d20e0e',
+          args: [{ role: 'Governor', targets: ['VERB', 'SelectedVerb'] },
+                 { role: 'Dependent', targets: ['Argument'] }] },
+
+        { type: 'obl:arg',     labels: ['obl:arg'],     dashArray: '3,3', color: '#d20e0e',
+          args: [{ role: 'Governor', targets: ['VERB', 'SelectedVerb'] },
+                 { role: 'Dependent', targets: ['Argument'] }] },
+
+        { type: 'aux',         labels: ['aux'],         dashArray: '3,3', color: '#d20e0e',
+          args: [{ role: 'Governor', targets: ['VERB', 'SelectedVerb'] },
+                 { role: 'Dependent', targets: ['Argument'] }] },
+
+        /**
+         * Application-specific "semantic" relations (CUSTOMIZABLE):
+         */
+        { type: 'argument', labels: ['argument'], color: '#020079',
+          args: [{ role: 'Governor', targets: ['Verb'] },
+                 { role: 'Dependent', targets: ['Argument'] }] },
+
+        { type: 'aux:caus', labels: ['aux:caus'], dashArray: '5,5', color: '#020079',
+          args: [{ role: 'Governor', targets: ['VERB', 'SelectedVerb_VERB', 'SelectedVerb_AUX'] },
+                 { role: 'Dependent', targets: ['AUX'] }] },
+
+        { type: 'aux', labels: ['aux'], dashArray: '5,5', color: '#020079',
+          args: [{ role: 'Governor', targets: ['VERB', 'SelectedVerb_VERB', 'SelectedVerb_AUX'] },
+                 { role: 'Dependent', targets: ['AUX'] }] },
+
+        { type: 'case_dependency', labels: ['case'], dashArray: '5,5', color: '#020079',
+          args: [{ role: 'Governor', targets: ['Argument'] },
+                 { role: 'Dependent', targets: ['CaseDependentLemma'] }] },
+
+        { type: 'fixed_dependency', labels: ['fixed'], dashArray: '5,5', color: '#020079',
+          args: [{ role: 'Governor', targets: ['CaseDependentLemma'] },
+                 { role: 'Dependent', targets: ['FixedDependentLemma'] }] }
+      ],
+
+      attribute_types: [
+        /**
+         * UD-style morphological attributes (LANGUAGE-SPECIFIC):
+         * Case inventories differ across languages/treebanks.
+         */
+        {
+          type: 'Case',
+          name: 'Case',
+          values: {
+            Abl:          { glyph: 'Abl',          bgColor: '#e6e6ff', fgColor: 'black', borderColor: 'darken' },
+            Acc:          { glyph: 'Acc',          bgColor: '#e6e6ff', fgColor: 'black', borderColor: 'darken' },
+            Dat:          { glyph: 'Dat',          bgColor: '#e6e6ff', fgColor: 'black', borderColor: 'darken' },
+            Gen:          { glyph: 'Gen',          bgColor: '#e6e6ff', fgColor: 'black', borderColor: 'darken' },
+            Ins:          { glyph: 'Ins',          bgColor: '#e6e6ff', fgColor: 'black', borderColor: 'darken' },
+            Loc:          { glyph: 'Loc',          bgColor: '#e6e6ff', fgColor: 'black', borderColor: 'darken' },
+            Nom:          { glyph: 'Nom',          bgColor: '#e6e6ff', fgColor: 'black', borderColor: 'darken' },
+            Uninflected:  { glyph: 'Uninflected',  bgColor: '#e6e6ff', fgColor: 'black', borderColor: 'darken' }
+          }
+        }
+      ]
+    };
+  </script>
+</head>
+
+<script>
+
+  (function() {
+    function resetControlsFromURL() {
+      const url = new URL(window.location.href);
+      const p = url.searchParams;
+
+      // Application-specific GET parameter names for dependency filters
+      const fields = [
+        'syntactic_relation','case_value','case_dependant_lemma',
+        'co_occurring_deprel_2','co_occurring_case_value_2','co_occurring_lemma_2',
+        'co_occurring_deprel_3','co_occurring_case_value_3','co_occurring_lemma_3',
+        'co_occurring_deprel_4','co_occurring_case_value_4','co_occurring_lemma_4',
+        'co_occurring_deprel_5','co_occurring_case_value_5','co_occurring_lemma_5'
+      ];
+
+      fields.forEach(name => {
+        const sel = document.querySelector(`select[name="${name}"]`);
+        if (!sel) return;
+        const urlVal = p.getAll(name)[0] || '';
+        sel.value = urlVal;
+      });
+
+      fields.forEach(name => {
+        const nodes = document.querySelectorAll(`input[type="hidden"][name="${name}"]`);
+        nodes.forEach(inp => {
+          const urlVal = p.getAll(name)[0] || '';
+          inp.value = urlVal;
+        });
+      });
+    }
+
+    window.addEventListener('DOMContentLoaded', resetControlsFromURL);
+    window.addEventListener('pageshow', (e) => {
+      const nav = performance.getEntriesByType('navigation')[0];
+      const isBackFwd = (e.persisted === true) || (nav && nav.type === 'back_forward');
+      if (isBackFwd) resetControlsFromURL();
+    });
+  })();
+</script>
+
+<body>
+  {% set is_alphabetical = sort_order == 'alphabetical' %}
+  {% set is_frequency = sort_order == 'frequency' %}
+  {% set new_order_alphabetical = 'desc' if is_alphabetical and order_direction == 'asc' else 'asc' %}
+  {% set new_order_frequency = 'desc' if not is_frequency else ('asc' if order_direction == 'desc' else 'desc') %}
+  {% set was_features_open = (request.args.get('features_open') == '1') %}
+  {% set was_sources_open = (request.args.get('sources_open') == '1') %}
+
+
+  <div class="header">
+    <h1 class="headline">
+      <span style="color: #FF4C00;">C</span>lassical
+      <span style="color: #FF4C00;">A</span>rmenian
+      <span style="color: #FF4C00;">Va</span>lency
+      <span style="color: #FF4C00;">L</span>exicon
+    </h1>
+  </div>
+
+  <!-- Navigation Panel (customizable + language-specific labels) -->
+  <nav class="navigation-panel">
+    <a href="{{ url_for('home', reset=1) }}"><span style="color: #FF4C00;">Search</span></a>
+    <a href="/about">About</a>
+    <a href="/how-to-use">How to Use</a>
+    <a href="/publications">Publications</a>
+  </nav>
+
+  <div class="horizontal-delimiter"></div>
+
+  <div class="content">
+
+    <div class="side-panel">
+
+      <!-- ============================================================
+           MULTI-SOURCE TEXT SELECTION (LANGUAGE-/CORPUS-SPECIFIC)
+           ============================================================
+           - "selected_source" values correspond to corpus/text identifiers
+             known to your backend.
+           - Add more <label> blocks (checkboxes) when you add new corpora.
+      -->
+      <h3 class="filter-subtitle">Select texts</h3>
+      <div class="source-selection" style="margin-bottom: 20px;">
+        <form method="GET" action="/" id="source-form" style="position: relative;">
+          <input type="hidden" name="source_checkbox_submitted" value="1">
+
+          <input type="hidden" name="sources_open" id="sources-open-input" value="{{ '1' if was_sources_open else '0' }}">
+
+          <div id="source-dropdown-toggle"
+               class="source-dropdown-toggle {% if was_sources_open %}active{% endif %}"
+               onclick="toggleSourceDropdown()">
+            Select texts
+            <span class="dropdown-arrow">
+              {% if was_sources_open %}&#9652;{% else %}&#9662;{% endif %}
+            </span>
+          </div>
+
+          <div class="source-dropdown-menu"
+               id="source-dropdown-menu"
+               style="display: {{ 'block' if was_sources_open else 'none' }};">
+            <div class="checkbox-items">
+
+              <!--
+                Corpus/text option (CUSTOMIZABLE):
+                - Replace/add items like "Arabic" with your actual corpus names/IDs.
+                - The "value" must match what the backend expects.
+              -->
+              <label>
+                <input type="checkbox" name="selected_source" value="Arabic"
+                       {% if 'Arabic' in selected_sources %}checked{% endif %}>
+                Arabic
+              </label>
+
+            </div>
+          </div>
+
+          <!-- Search queries (LANGUAGE-SPECIFIC: field names can differ per script page) -->
+          <input type="hidden" name="armenian_search_query" value="{{ armenian_search_query }}">
+          <input type="hidden" name="english_search_query" value="{{ english_search_query }}">
+
+          {% if selected_verb %}
+            <input type="hidden" name="selected_verb" value="{{ selected_verb }}">
+          {% endif %}
+          {% if selected_verb_gloss %}
+            <input type="hidden" name="selected_verb_gloss" value="{{ selected_verb_gloss }}">
+          {% endif %}
+
+          <input type="hidden" name="features_open" id="features-open-input"
+                 value="{{ '1' if was_features_open else '0' }}">
+
+          {% for vf in request.args.getlist('verbform') %}<input type="hidden" name="verbform" value="{{ vf }}">{% endfor %}
+          {% for asp in request.args.getlist('aspect') %}<input type="hidden" name="aspect" value="{{ asp }}">{% endfor %}
+          {% for c in request.args.getlist('case_feature') %}<input type="hidden" name="case_feature" value="{{ c }}">{% endfor %}
+          {% for neg in request.args.getlist('Negation') %}<input type="hidden" name="Negation" value="{{ neg }}">{% endfor %}
+          {% for m in request.args.getlist('mood') %}<input type="hidden" name="mood" value="{{ m }}">{% endfor %}
+          {% for num in request.args.getlist('number') %}<input type="hidden" name="number" value="{{ num }}">{% endfor %}
+          {% for p in request.args.getlist('person') %}<input type="hidden" name="person" value="{{ p }}">{% endfor %}
+          {% for t in request.args.getlist('tense') %}<input type="hidden" name="tense" value="{{ t }}">{% endfor %}
+          {% for v in request.args.getlist('voice') %}<input type="hidden" name="voice" value="{{ v }}">{% endfor %}
+
+          <input type="hidden" name="syntactic_relation" value="{{ request.args.get('syntactic_relation', '') }}">
+          <input type="hidden" name="case_value" value="{{ request.args.get('case_value', '') }}">
+          <input type="hidden" name="case_dependant_lemma" value="{{ request.args.get('case_dependant_lemma', '') }}">
+
+          {% for i in range(2, 6) %}
+            <input type="hidden" name="co_occurring_deprel_{{ i }}" value="{{ request.args.get('co_occurring_deprel_' ~ i, '') }}">
+            <input type="hidden" name="co_occurring_case_value_{{ i }}" value="{{ request.args.get('co_occurring_case_value_' ~ i, '') }}">
+            <input type="hidden" name="co_occurring_lemma_{{ i }}" value="{{ request.args.get('co_occurring_lemma_' ~ i, '') }}">
+            <input type="hidden" name="dependency{{ i }}_visible" value="{{ request.args.get('dependency' ~ i ~ '_visible', 'false') }}">
+          {% endfor %}
+        </form>
+      </div>
+
+      <!-- ============================================================
+           SEARCH BY VERB (LANGUAGE-SPECIFIC INPUTS)
+           ============================================================
+           - armenian_search_query: script-specific input (rename on other pages if needed)
+           - english_search_query: gloss/translation input (replace with another metalanguage if needed)
+      -->
+      <h3 class="filter-subtitle">Search by verb</h3>
+      <form id="search-form" method="GET" action="/">
+        <input type="text" name="armenian_search_query" value="{{ armenian_search_query }}" placeholder="Search verb">
+        <input type="text" name="english_search_query" value="{{ english_search_query }}" placeholder="Search meaning">
+
+        {% for src in selected_sources %}
+          <input type="hidden" name="selected_source" value="{{ src }}">
+        {% endfor %}
+
+        <input type="hidden" name="search_submit" value="1">
+        <input type="hidden" name="source_checkbox_submitted" value="1">
+      </form>
+
+      <!-- ============================================================
+           SEARCH BY FEATURES (UD FEATURE INVENTORY IS LANGUAGE-SPECIFIC)
+           ============================================================
+           - The set of features (VerbForm/Aspect/Case/etc.) depends on your dataset.
+           - verb_features_config + server_feature_values are injected from Flask.
+      -->
+      <h3 class="filter-subtitle" style="margin-top: 20px;">Search by features</h3>
+
+      {% set default_button_label = 'Hide verb features' if was_features_open else 'Show verb features' %}
+      <button type="button"
+              class="toggle-verb-features-btn"
+              onclick="toggleVerbFeaturesDropdown()"
+              id="verb-features-toggle-btn">
+        {{ default_button_label|safe }}
+        <span class="dropdown-arrow">
+          {% if was_features_open %}&#9652;{% else %}&#9662;{% endif %}
+        </span>
+      </button>
+
+      <div id="verb-features-dropdown"
+           class="verb-features-dropdown"
+           style="display: {{ 'block' if was_features_open else 'none' }}; margin-top:10px;">
+        <form id="verb-features-form" method="GET" action="/">
+          <input type="hidden" name="source_checkbox_submitted" value="1">
+          <input type="hidden" name="armenian_search_query" value="{{ armenian_search_query }}">
+          <input type="hidden" name="english_search_query" value="{{ english_search_query }}">
+          {% if selected_verb %}<input type="hidden" name="selected_verb" value="{{ selected_verb }}">{% endif %}
+          {% if selected_verb_gloss %}<input type="hidden" name="selected_verb_gloss" value="{{ selected_verb_gloss }}">{% endif %}
+          {% for src in selected_sources %}<input type="hidden" name="selected_source" value="{{ src }}">{% endfor %}
+
+          <input type="hidden" name="syntactic_relation" value="{{ request.args.get('syntactic_relation','') }}">
+          <input type="hidden" name="case_value" value="{{ request.args.get('case_value','') }}">
+          <input type="hidden" name="case_dependant_lemma" value="{{ request.args.get('case_dependant_lemma','') }}">
+          {% for i in range(2, 6) %}
+            <input type="hidden" name="co_occurring_deprel_{{ i }}" value="{{ request.args.get('co_occurring_deprel_' ~ i, '') }}">
+            <input type="hidden" name="co_occurring_case_value_{{ i }}" value="{{ request.args.get('co_occurring_case_value_' ~ i, '') }}">
+            <input type="hidden" name="co_occurring_lemma_{{ i }}" value="{{ request.args.get('co_occurring_lemma_' ~ i, '') }}">
+            <input type="hidden" name="dependency{{ i }}_visible" value="{{ request.args.get('dependency' ~ i ~ '_visible','false') }}">
+          {% endfor %}
+
+          <input type="hidden" name="features_open" id="features-open-input" value="{{ '1' if was_features_open else '0' }}">
+
+          <!--
+            Feature table:
+            - Categories are UD features and therefore language/treebank-specific.
+            - server_feature_values is used to disable checkboxes that do not exist
+              in the current filtered dataset.
+          -->
+          <table class="verb-features-table">
+            <!-- VerbForm -->
+            <tr id="category-verbform">
+              <td class="category-cell">VerbForm</td>
+              <td class="options-cell">
+                {% for option in verb_features_config["categories"]["VerbForm"] %}
+                  {% set is_selected = (option in request.args.getlist('verbform')) %}
+                  {% set is_in_db = (option in server_feature_values["VerbForm"]) %}
+                  <label class="feature-option">
+                    <input type="checkbox"
+                           name="verbform"
+                           value="{{ option }}"
+                           onchange="updateConstraints()"
+                           {% if is_selected %}checked{% endif %}
+                           {% if (not is_in_db) and (not is_selected) %}disabled{% endif %}>
+                    {{ option }}
+                  </label>
+                {% endfor %}
+              </td>
+            </tr>
+
+            <!-- Aspect -->
+            <tr id="category-aspect">
+              <td class="category-cell">Aspect</td>
+              <td class="options-cell">
+                {% for asp in verb_features_config["categories"]["Aspect"] %}
+                  {% set is_selected = (asp in request.args.getlist('aspect')) %}
+                  {% set is_in_db = (asp in server_feature_values["Aspect"]) %}
+                  <label class="feature-option">
+                    <input type="checkbox"
+                           name="aspect"
+                           value="{{ asp }}"
+                           onchange="updateConstraints()"
+                           {% if is_selected %}checked{% endif %}
+                           {% if (not is_in_db) and (not is_selected) %}disabled{% endif %}>
+                    {{ asp }}
+                  </label>
+                {% endfor %}
+              </td>
+            </tr>
+
+            <!-- Case  -->
+            <tr id="category-case_feature">
+              <td class="category-cell">Case</td>
+              <td class="options-cell">
+                {% for c in verb_features_config["categories"]["Case"] %}
+                  {% set is_selected = (c in request.args.getlist('case_feature')) %}
+                  {% set is_in_db = (c in server_feature_values["Case"]) %}
+                  <label class="feature-option">
+                    <input type="checkbox"
+                           name="case_feature"
+                           value="{{ c }}"
+                           onchange="updateConstraints()"
+                           {% if is_selected %}checked{% endif %}
+                           {% if (not is_in_db) and (not is_selected) %}disabled{% endif %}>
+                    {{ c }}
+                  </label>
+                {% endfor %}
+              </td>
+            </tr>
+
+            <!-- Negation  -->
+            <tr id="category-Negation">
+              <td class="category-cell">Negation</td>
+              <td class="options-cell">
+                {% for n in verb_features_config["categories"]["Negation"] %}
+                  {% set is_selected = (n in request.args.getlist('Negation')) %}
+                  {% set is_in_db = (n in server_feature_values["Negation"]) %}
+                  <label class="feature-option">
+                    <input type="checkbox"
+                           name="Negation"
+                           value="{{ n }}"
+                           onchange="updateConstraints()"
+                           {% if is_selected %}checked{% endif %}
+                           {% if (not is_in_db) and (not is_selected) %}disabled{% endif %}>
+                    {{ n }}
+                  </label>
+                {% endfor %}
+              </td>
+            </tr>
+
+            <!-- Mood -->
+            <tr id="category-mood">
+              <td class="category-cell">Mood</td>
+              <td class="options-cell">
+                {% for m in verb_features_config["categories"]["Mood"] %}
+                  {% set is_selected = (m in request.args.getlist('mood')) %}
+                  {% set is_in_db = (m in server_feature_values["Mood"]) %}
+                  <label class="feature-option">
+                    <input type="checkbox"
+                           name="mood"
+                           value="{{ m }}"
+                           onchange="updateConstraints()"
+                           {% if is_selected %}checked{% endif %}
+                           {% if (not is_in_db) and (not is_selected) %}disabled{% endif %}>
+                    {{ m }}
+                  </label>
+                {% endfor %}
+              </td>
+            </tr>
+
+            <!-- Number -->
+            <tr id="category-number">
+              <td class="category-cell">Number</td>
+              <td class="options-cell">
+                {% for num in verb_features_config["categories"]["Number"] %}
+                  {% set is_selected = (num in request.args.getlist('number')) %}
+                  {% set is_in_db = (num in server_feature_values["Number"]) %}
+                  <label class="feature-option">
+                    <input type="checkbox"
+                           name="number"
+                           value="{{ num }}"
+                           onchange="updateConstraints()"
+                           {% if is_selected %}checked{% endif %}
+                           {% if (not is_in_db) and (not is_selected) %}disabled{% endif %}>
+                    {{ num }}
+                  </label>
+                {% endfor %}
+              </td>
+            </tr>
+
+            <!-- Person -->
+            <tr id="category-person">
+              <td class="category-cell">Person</td>
+              <td class="options-cell">
+                {% for p in verb_features_config["categories"]["Person"] %}
+                  {% set is_selected = (p in request.args.getlist('person')) %}
+                  {% set is_in_db = (p in server_feature_values["Person"]) %}
+                  <label class="feature-option">
+                    <input type="checkbox"
+                           name="person"
+                           value="{{ p }}"
+                           onchange="updateConstraints()"
+                           {% if is_selected %}checked{% endif %}
+                           {% if (not is_in_db) and (not is_selected) %}disabled{% endif %}>
+                    {{ p }}
+                  </label>
+                {% endfor %}
+              </td>
+            </tr>
+
+            <!-- Tense -->
+            <tr id="category-tense">
+              <td class="category-cell">Tense</td>
+              <td class="options-cell">
+                {% for t in verb_features_config["categories"]["Tense"] %}
+                  {% set is_selected = (t in request.args.getlist('tense')) %}
+                  {% set is_in_db = (t in server_feature_values["Tense"]) %}
+                  <label class="feature-option">
+                    <input type="checkbox"
+                           name="tense"
+                           value="{{ t }}"
+                           onchange="updateConstraints()"
+                           {% if is_selected %}checked{% endif %}
+                           {% if (not is_in_db) and (not is_selected) %}disabled{% endif %}>
+                    {{ t }}
+                  </label>
+                {% endfor %}
+              </td>
+            </tr>
+
+            <!-- Voice -->
+            <tr id="category-voice">
+              <td class="category-cell">Voice</td>
+              <td class="options-cell">
+                {% for v in verb_features_config["categories"]["Voice"] %}
+                  {% set is_selected = (v in request.args.getlist('voice')) %}
+                  {% set is_in_db = (v in server_feature_values["Voice"]) %}
+                  <label class="feature-option">
+                    <input type="checkbox"
+                           name="voice"
+                           value="{{ v }}"
+                           onchange="updateConstraints()"
+                           {% if is_selected %}checked{% endif %}
+                           {% if (not is_in_db) and (not is_selected) %}disabled{% endif %}>
+                    {{ v }}
+                  </label>
+                {% endfor %}
+              </td>
+            </tr>
+          </table>
+
+          <button class="add-dependency-btn" type="submit" style="margin-top:10px;">
+            Apply
+          </button>
+        </form>
+      </div>
+      <!-- ==================== END SEARCH BY FEATURES ==================== -->
+
+      <!-- ============================================================
+           SEARCH BY VALENCY / DEPENDENCIES (LANGUAGE-/TREEBANK-SPECIFIC)
+           ============================================================
+      -->
+      <form action="/" method="get">
+        <input type="hidden" name="source_checkbox_submitted" value="1">
+
+        {% if selected_verb %}<input type="hidden" name="selected_verb" value="{{ selected_verb }}">{% endif %}
+        {% if selected_verb_gloss %}<input type="hidden" name="selected_verb_gloss" value="{{ selected_verb_gloss }}">{% endif %}
+        <input type="hidden" name="armenian_search_query" value="{{ armenian_search_query }}">
+        <input type="hidden" name="english_search_query" value="{{ english_search_query }}">
+        {% for src in selected_sources %}<input type="hidden" name="selected_source" value="{{ src }}">{% endfor %}
+
+        <input type="hidden" name="search_submit" value="1">
+
+        {% for vf in request.args.getlist('verbform') %}<input type="hidden" name="verbform" value="{{ vf }}">{% endfor %}
+        {% for asp in request.args.getlist('aspect') %}<input type="hidden" name="aspect" value="{{ asp }}">{% endfor %}
+        {% for c in request.args.getlist('case_feature') %}<input type="hidden" name="case_feature" value="{{ c }}">{% endfor %}
+        {% for neg in request.args.getlist('Negation') %}<input type="hidden" name="Negation" value="{{ neg }}">{% endfor %}
+        {% for m in request.args.getlist('mood') %}<input type="hidden" name="mood" value="{{ m }}">{% endfor %}
+        {% for num in request.args.getlist('number') %}<input type="hidden" name="number" value="{{ num }}">{% endfor %}
+        {% for p in request.args.getlist('person') %}<input type="hidden" name="person" value="{{ p }}">{% endfor %}
+        {% for t in request.args.getlist('tense') %}<input type="hidden" name="tense" value="{{ t }}">{% endfor %}
+        {% for v in request.args.getlist('voice') %}<input type="hidden" name="voice" value="{{ v }}">{% endfor %}
+
+        {% for dep in dependencies %}
+          {% set is_visible = dependency_visible_flags[loop.index0] %}
+          <div id="dependency-{{ loop.index }}" style="display: {{ 'block' if is_visible else 'none' }}; margin-top: 20px;">
+            {% if loop.index0 == 0 %}
+              <h3 class="filter-subtitle">Search by valency</h3>
+            {% endif %}
+
+            <div class="selectors">
+              <strong>Dependency {{ loop.index }}</strong>
+
+              {% set options = dependencies_options[loop.index0] %}
+
+              <select name="{{ 'syntactic_relation' if loop.index0 == 0 else 'co_occurring_deprel_' + loop.index|string }}"
+                      onchange="this.form.submit()">
+                <option value="">Select relation</option>
+                {% for deprel in options.deprels %}
+                  <option value="{{ deprel }}" {% if deprel == dep.deprel %}selected{% endif %}>{{ deprel }}</option>
+                {% endfor %}
+              </select>
+
+              <select name="{{ 'case_value' if loop.index0 == 0 else 'co_occurring_case_value_' + loop.index|string }}"
+                      onchange="this.form.submit()">
+                <option value="">Select encoding</option>
+                {% for case_value in options.case_values %}
+                  <option value="{{ case_value }}" {% if case_value == dep.case_value %}selected{% endif %}>{{ case_value }}</option>
+                {% endfor %}
+              </select>
+
+              <select name="{{ 'case_dependant_lemma' if loop.index0 == 0 else 'co_occurring_lemma_' + loop.index|string }}"
+                      onchange="this.form.submit()">
+                <option value="">Select lemma</option>
+                {% for lemma in options.lemmas %}
+                  <option value="{{ lemma }}" {% if lemma == dep.lemma %}selected{% endif %}>{{ lemma }}</option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <input type="hidden" name="dependency{{ loop.index }}_visible" value="{{ 'true' if is_visible else 'false' }}">
+
+            {% if loop.index0 == last_visible_dependency_index %}
+              {% if loop.index0 > 0 %}
+                <!-- UI label can be localized -->
+                <button id="remove-dependency-{{ loop.index }}" class="remove-dependency-btn" type="button">Remove</button>
+              {% endif %}
+
+              {% if dependency_has_selection[loop.index0] and loop.index0 < (dependencies|length - 1) and has_next_dependency_options[loop.index0] %}
+                <button id="add-dependency-{{ loop.index + 1 }}" class="add-dependency-btn" type="button">Add</button>
+              {% endif %}
+            {% endif %}
+          </div>
+        {% endfor %}
+      </form>
+    </div>
+
+    <div class="filters">
+      <!-- Alphabet navigation (language-specific if your lemma alphabet changes) -->
+      <div class="alphabet-filter">
+        {% for item in initial_links %}
+          <a href="{{ item.url }}">{{ item.letter }}</a>
+        {% endfor %}
+        {% if clear_initials_url %}
+          &nbsp;|&nbsp; <a href="{{ clear_initials_url }}">All</a>
+        {% endif %}
+      </div>
+
+      <!-- Orthography switch (language-/script-specific) -->
+      <div class="search-bar" style="margin-bottom:-5px;">
+        <span style="font-size:0.9em;">Orthography:</span>
+        <a href="{{ switch_url }}" class="switch-link">
+          {% if is_translit_page %}Default script{% else %}Transliteration{% endif %}
+        </a>
+      </div>
+
+      {% if sentences and selected_verb %}
+        <div class="occurrences" style="margin:10px 0; font-size:0.9em; margin-left:0px;">
+          Number of occurrences: {{ selected_verb_token_count }}
+        </div>
+      {% endif %}
+
+      {% if not sentences %}
+        <div class="occurrences">
+          <span style="font-size: 0.9em;">Number of verbs: {{ total_verb_count }}</span><br>
+          <span style="font-size: 0.9em;">Number of occurrences: {{ total_occurrence_count }}</span><br>
+
+          <span style="font-size: 0.9em;">Sort:</span>
+
+          <!-- Alphabetical sort -->
+          <form id="sort-alphabetical-form" method="GET" style="display:inline;">
+            {%- for key, values in request.args.lists() %}
+              {%- for val in values %}
+                {%- if key not in ['sort','order'] %}
+                  <input type="hidden" name="{{ key }}" value="{{ val|e }}">
+                {%- endif %}
+              {%- endfor %}
+            {%- endfor %}
+            <input type="hidden" name="sort" value="alphabetical">
+            <input type="hidden" name="order" value="{{ new_order_alphabetical }}">
+            <a href="#"
+               onclick="document.getElementById('sort-alphabetical-form').submit(); return false;"
+               class="sort-link">
+              alphabetically
+              {% if is_alphabetical %}
+                {% if order_direction == 'asc' %}&#9660;{% else %}&#9650;{% endif %}
+              {% endif %}
+            </a>
+          </form>
+
+          &nbsp;/&nbsp;
+
+          <!-- Frequency sort -->
+          <form id="sort-frequency-form" method="GET" style="display:inline;">
+            {%- for key, values in request.args.lists() %}
+              {%- for val in values %}
+                {%- if key not in ['sort','order'] %}
+                  <input type="hidden" name="{{ key }}" value="{{ val|e }}">
+                {%- endif %}
+              {%- endfor %}
+            {%- endfor %}
+            <input type="hidden" name="sort" value="frequency">
+            <input type="hidden" name="order" value="{{ new_order_frequency }}">
+            <a href="#"
+               onclick="document.getElementById('sort-frequency-form').submit(); return false;"
+               class="sort-link">
+              by frequency
+              {% if is_frequency %}
+                {% if order_direction == 'asc' %}&#9650;{% else %}&#9660;{% endif %}
+              {% endif %}
+            </a>
+          </form>
+        </div>
+
+        {% if user_feature_selections %}
+          <div class="chosen-features" style="margin-left:20px; margin-bottom:10px; margin-top:1px; font-size:0.9em; font-weight:normal;">
+            Selected features:
+            {% for feat_name, feat_vals in user_feature_selections.items() %}
+              {{ feat_name }}: {{ feat_vals|join(', ') }}{% if not loop.last %}, {% endif %}
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endif %}
+
+
+      {% if not selected_sources %}
+        <div class="verbs-list"></div>
+
+        {% if sentences %}
+          {% if user_feature_selections %}
+            <div class="chosen-features" style="margin-bottom:10px; margin-top:1px; font-size:0.9em; font-weight:normal;">
+              Selected features:
+              {% for feat_name, feat_vals in user_feature_selections.items() %}
+                {{ feat_name }}: {{ feat_vals|join(', ') }}{% if not loop.last %}, {% endif %}
+              {% endfor %}
+            </div>
+          {% endif %}
+
+          <div class="sentences-display">
+
+            <div class="content-subtitle" style="margin-top:10px;">
+              {% if selected_verb_url %}
+                <a href="{{ selected_verb_url }}" target="_blank" title="Check in Calfa" class="verb-link">
+                  {{ selected_verb }}
+                  {% if selected_verb_gloss %}'{{ selected_verb_gloss }}'{% endif %}
+                  <img src="{{ url_for('static', filename='external-link.svg') }}" alt="External Link" class="external-link-icon">
+                </a>
+              {% else %}
+                {{ selected_verb }}
+                {% if selected_verb_gloss %}'{{ selected_verb_gloss }}'{% endif %}
+              {% endif %}
+            </div>
+
+            {% for sentence in sentences %}
+              <p>
+                <strong class="sentence-id">{{ sentence.sent_id }}:</strong>
+
+                {% for word in sentence.words %}
+                  <span class="{% if word.is_selected_verb %}highlighted-verb{% elif word.is_dependent and not word.is_oblique %}bold{% elif word.is_oblique %}oblique{% else %}word-highlight{% endif %}">
+                    {{ word.form }}
+                    <!-- Tooltip content is language-specific (gloss/analysis) -->
+                    <span class="feat-tooltip">{{ word.gloss }}</span>
+                  </span>
+                {% endfor %}
+
+                <span onclick="toggleTranslation(this)" style="cursor:pointer;">
+                  <img src="{{ url_for('static', filename='A.svg') }}" alt="Show translation" class="translation-icon" title="Show translation">
+                </span>
+                <span style="display:none; font-style:normal; margin-top: 8px" class="translation">
+                  {{ sentence.translated_text }}
+                </span>
+              </p>
+
+              <!-- brat visualization container for this sentence -->
+              <div id="brat-container-{{ loop.index }}"></div>
+              <script type="text/javascript">
+                // Sentence-specific brat payload from backend (structure must match collData)
+                var bratData{{ loop.index }} = {{ sentence.brat_data|tojson }};
+              </script>
+            {% endfor %}
+
+            <!-- Initialize brat visualizations after head.js finished loading -->
+            <script type="text/javascript">
+              head.ready(function() {
+                {% for sentence in sentences %}
+                  Util.embed(
+                    'brat-container-{{ loop.index }}',
+                    collData,
+                    bratData{{ loop.index }},
+                    webFontURLs
+                  );
+                {% endfor %}
+              });
+            </script>
+          </div>
+
+        {% else %}
+          <div class="verbs-list">
+            <ul>
+              {% for verb in verbs_with_frequencies %}
+                <li>
+                  <a href="{{ update_query_params(selected_verb=verb.lemma, selected_verb_gloss=verb.gloss, page=1) }}">
+                    {{ verb.lemma }} '{{ verb.gloss }}' ({{ verb.frequency }})
+                  </a>
+                </li>
+              {% endfor %}
+            </ul>
+          </div>
+        {% endif %}
+      {% endif %}
+    </div>
+  </div>
+
+
+  <script>
+ 
+    document.addEventListener('DOMContentLoaded', () => {
+      let lastVisibleIndex = {{ last_visible_dependency_index }};
+
+      if (lastVisibleIndex >= 1) {
+        let removeButton = document.querySelector('#remove-dependency-' + (lastVisibleIndex + 1));
+        if (removeButton) {
+          removeButton.addEventListener('click', () => {
+            let dependencyDiv = document.querySelector('#dependency-' + (lastVisibleIndex + 1));
+            if (!dependencyDiv) return;
+
+            dependencyDiv.querySelectorAll('select').forEach(select => { select.selectedIndex = 0; });
+
+            dependencyDiv.style.display = 'none';
+
+            let input = dependencyDiv.querySelector('input[name="dependency' + (lastVisibleIndex + 1) + '_visible"]');
+            if (input) input.value = 'false';
+
+            dependencyDiv.closest('form').submit();
+          });
+        }
+      }
+
+      if (lastVisibleIndex < ({{ dependencies|length }} - 1)) {
+        let addButton = document.querySelector('#add-dependency-' + (lastVisibleIndex + 2));
+        if (addButton) {
+          addButton.addEventListener('click', () => {
+            let nextDependencyDiv = document.querySelector('#dependency-' + (lastVisibleIndex + 2));
+            if (!nextDependencyDiv) return;
+
+            nextDependencyDiv.style.display = 'block';
+
+            let input = nextDependencyDiv.querySelector('input[name="dependency' + (lastVisibleIndex + 2) + '_visible"]');
+            if (input) {
+              input.value = 'true';
+            } else {
+              input = document.createElement('input');
+              input.type = 'hidden';
+              input.name = 'dependency' + (lastVisibleIndex + 2) + '_visible';
+              input.value = 'true';
+              nextDependencyDiv.appendChild(input);
+            }
+
+            // Trigger server to recompute valid options
+            nextDependencyDiv.closest('form').submit();
+          });
+        }
+      }
+    });
+
+
+    function toggleTranslation(element) {
+      let translation = element.nextElementSibling;
+      translation.style.display = (translation.style.display === 'none') ? 'block' : 'none';
+      element.querySelector('img').title =
+        (translation.style.display === 'none') ? 'Show translation' : 'Hide translation';
+    }
+  </script>
+
+  <script>
+
+    function toggleSourceDropdown() {
+      const menu      = document.getElementById('source-dropdown-menu');
+      const toggleBtn = document.getElementById('source-dropdown-toggle');
+      const arrow     = toggleBtn.querySelector('.dropdown-arrow');
+      const openInput = document.getElementById('sources-open-input');
+
+      const isOpen = (menu.style.display === 'block');
+      if (!isOpen) {
+        menu.style.display = 'block';
+        toggleBtn.classList.add('active');
+        arrow.innerHTML = '&#9652;';  // ▲
+        openInput.value = '1';
+      } else {
+        menu.style.display = 'none';
+        toggleBtn.classList.remove('active');
+        arrow.innerHTML = '&#9662;';  // ▼
+        openInput.value = '0';
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const container = document.getElementById('source-dropdown-menu');
+      if (!container) return;
+      container.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+        cb.addEventListener('change', () => {
+          document.getElementById('source-form').submit();
+        });
+      });
+    });
+  </script>
+
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const searchForm = document.getElementById('search-form');
+      if (!searchForm) return;
+
+      const languageInput = document.querySelector('input[name="armenian_search_query"]');
+      const englishInput  = document.querySelector('input[name="english_search_query"]');
+
+      searchForm.addEventListener('keypress', function(event) {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          searchForm.submit();
+        }
+      });
+
+      let typingTimer;
+      const typingInterval = 1000;
+
+      function autoSubmit() {
+        clearTimeout(typingTimer);
+        typingTimer = setTimeout(() => {
+          searchForm.submit();
+        }, typingInterval);
+      }
+
+      if (languageInput) languageInput.addEventListener('keyup', autoSubmit);
+      if (englishInput)  englishInput.addEventListener('keyup', autoSubmit);
+    });
+  </script>
+
+  <script>
+    const serverFeatureValues = {{ server_feature_values|tojson }};
+
+    const serverValuesMap = {
+      verbform:     serverFeatureValues.VerbForm,
+      aspect:       serverFeatureValues.Aspect,
+      case_feature: serverFeatureValues.Case,
+      Negation:     serverFeatureValues.Negation,
+      mood:         serverFeatureValues.Mood,
+      number:       serverFeatureValues.Number,
+      person:       serverFeatureValues.Person,
+      tense:        serverFeatureValues.Tense,
+      voice:        serverFeatureValues.Voice
+    };
+
+    const verbFeaturesConfig = {{ verb_features_config|tojson }};
+
+    const allCategories = {
+      verbform:      verbFeaturesConfig.categories.VerbForm,
+      aspect:        verbFeaturesConfig.categories.Aspect,
+      case_feature:  verbFeaturesConfig.categories.Case,
+      Negation:      verbFeaturesConfig.categories.Negation,
+      mood:          verbFeaturesConfig.categories.Mood,
+      number:        verbFeaturesConfig.categories.Number,
+      person:        verbFeaturesConfig.categories.Person,
+      tense:         verbFeaturesConfig.categories.Tense,
+      voice:         verbFeaturesConfig.categories.Voice
+    };
+
+    const cooccurrenceMap = verbFeaturesConfig.cooccurrence;
+
+    function getChecked(categoryName) {
+      let arr = [];
+      document.querySelectorAll('input[name="' + categoryName + '"]:checked').forEach(el => {
+        arr.push(el.value);
+      });
+      return arr;
+    }
+
+    function computeAllowedSets() {
+      let allowedSets = {};
+      for (let catKey in allCategories) {
+        allowedSets[catKey] = new Set(allCategories[catKey]);
+      }
+
+      const selectedVerbforms = getChecked("verbform");
+      const selectedAspects   = getChecked("aspect");
+      const selectedCases     = getChecked("case_feature");
+      const selectedNegation  = getChecked("Negation");
+      const selectedMoods     = getChecked("mood");
+      const selectedNumbers   = getChecked("number");
+      const selectedPersons   = getChecked("person");
+      const selectedTenses    = getChecked("tense");
+      const selectedVoices    = getChecked("voice");
+
+      let categoryBooleansFromVerbForms = {
+        Aspect: false, Case: false, Negation: false, Mood: false,
+        Number: false, Person: false, Tense: false, Voice: false
+      };
+
+      if (selectedVerbforms.length > 0) {
+        selectedVerbforms.forEach(vf => {
+          let catMap = cooccurrenceMap[vf];
+          for (let catK in catMap) {
+            if (catMap[catK] === true) categoryBooleansFromVerbForms[catK] = true;
+          }
+        });
+
+        for (let catK in categoryBooleansFromVerbForms) {
+          if (categoryBooleansFromVerbForms[catK] === false) {
+            let lcKey = catK.toLowerCase();
+            if (lcKey === "case") lcKey = "case_feature";
+            if (lcKey === "negation") lcKey = "Negation";
+            if (allowedSets[lcKey]) allowedSets[lcKey].clear();
+          }
+        }
+      }
+
+      function enforceCategoryOnVerbForms(selectedArr, categoryNameCapital) {
+        if (selectedArr.length > 0) {
+          for (let vf of [...allowedSets["verbform"]]) {
+            if (cooccurrenceMap[vf][categoryNameCapital] === false) {
+              allowedSets["verbform"].delete(vf);
+            }
+          }
+        }
+      }
+
+      enforceCategoryOnVerbForms(selectedAspects,  "Aspect");
+      if (selectedCases.length > 0) {
+        for (let vf of [...allowedSets["verbform"]]) {
+          if (cooccurrenceMap[vf].Case === false) allowedSets["verbform"].delete(vf);
+        }
+      }
+      enforceCategoryOnVerbForms(selectedNegation, "Negation");
+      enforceCategoryOnVerbForms(selectedMoods,    "Mood");
+      enforceCategoryOnVerbForms(selectedNumbers,  "Number");
+      enforceCategoryOnVerbForms(selectedPersons,  "Person");
+      enforceCategoryOnVerbForms(selectedTenses,   "Tense");
+      enforceCategoryOnVerbForms(selectedVoices,   "Voice");
+
+      let categoriesAllowedByRemainingVF = {
+        Aspect: false, Case: false, Negation: false, Mood: false,
+        Number: false, Person: false, Tense: false, Voice: false
+      };
+
+      for (let vf of allowedSets["verbform"]) {
+        let catMap = cooccurrenceMap[vf];
+        for (let catK in catMap) {
+          if (catMap[catK] === true) categoriesAllowedByRemainingVF[catK] = true;
+        }
+      }
+
+      for (let catK in categoriesAllowedByRemainingVF) {
+        if (categoriesAllowedByRemainingVF[catK] === false) {
+          let lcKey = catK.toLowerCase();
+          if (lcKey === "case") lcKey = "case_feature";
+          if (lcKey === "negation") lcKey = "Negation";
+          allowedSets[lcKey].clear();
+        }
+      }
+
+      return allowedSets;
+    }
+
+    function applyAllowedSetsToUI(allowedSets) {
+      for (let catKey in allCategories) {
+        let containerEl = document.getElementById("category-" + catKey);
+        if (!containerEl) continue;
+
+        containerEl.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+          const val = cb.value;
+          const isAllowedByClient = allowedSets[catKey].has(val);
+          const isAllowedByServer = serverValuesMap[catKey]?.includes(val);
+
+          if (isAllowedByClient && isAllowedByServer) {
+            cb.disabled = false;
+          } else {
+            cb.disabled = true;
+            cb.checked = false;
+          }
+        });
+      }
+    }
+
+    function updateConstraints() {
+      const allowedSets = computeAllowedSets();
+      applyAllowedSetsToUI(allowedSets);
+    }
+
+    document.addEventListener("DOMContentLoaded", function() {
+      updateConstraints();
+    });
+  </script>
+
+  <script>
+
+    function toggleVerbFeaturesDropdown() {
+      const dropdown  = document.getElementById('verb-features-dropdown');
+      const btn       = document.getElementById('verb-features-toggle-btn');
+      const arrow     = btn.querySelector('.dropdown-arrow');
+      const openInput = document.getElementById('features-open-input');
+
+      if (dropdown.style.display === '' || dropdown.style.display === 'none') {
+        dropdown.style.display = 'block';
+        arrow.innerHTML = '&#9652;';  // ▲
+        openInput.value = '1';
+      } else {
+        dropdown.style.display = 'none';
+        arrow.innerHTML = '&#9662;';  // ▼
+        openInput.value = '0';
+      }
+    }
+  </script>
+
+  <br>
+
+  <div class="horizontal-delimiter"></div>
+
+  <div class="footer">
+    <div>
+      <p style="color: #d20e0e; font-size: 0.8em;">© CAVaL</p>
+    </div>
+
+    <div class="footer-content">
+      <!-- Prefer url_for so paths work behind proxies/subpaths -->
+      <img src="{{ url_for('static', filename='dfg_logo.gif') }}" alt="dfg">
+      <img src="{{ url_for('static', filename='wu_logo.png') }}" alt="wu">
+    </div>
+  </div>
+</body>
+</html>
